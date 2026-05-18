@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+import matplotlib
 from textblob import TextBlob
 from vaderSentiment.vaderSentiment import (
     SentimentIntensityAnalyzer)
@@ -14,606 +14,610 @@ import warnings
 warnings.filterwarnings('ignore')
 
 st.set_page_config(
-    page_title="Review Analyzer",
-    page_icon="⭐",
+    page_title="Sentiment Analyzer",
+    page_icon="🐦",
     layout="wide"
 )
 
-st.title("⭐ Product Review Analyzer")
-st.markdown("Analyze product reviews to extract "
-            "insights, sentiment trends and key themes.")
+st.title("🐦 Social Media Sentiment Analyzer")
+st.markdown("Analyze sentiment of any text, "
+            "topic or batch of social media posts.")
 st.markdown("---")
 
+# Initialize VADER
 analyzer = SentimentIntensityAnalyzer()
 
-# Sample reviews dataset
-SAMPLE_REVIEWS = {
-    "Smartphone": [
-        {"text": "Amazing phone! Camera quality is outstanding and battery lasts all day.", "rating": 5},
-        {"text": "Great value for money. Performance is smooth and display is beautiful.", "rating": 5},
-        {"text": "Good phone but heating issues after long gaming sessions.", "rating": 3},
-        {"text": "Battery drains fast. Camera is decent but not as advertised.", "rating": 2},
-        {"text": "Worst phone I ever bought. Screen broke after one week.", "rating": 1},
-        {"text": "Excellent build quality. Fast charging is a game changer.", "rating": 5},
-        {"text": "Average performance. Nothing special for the price.", "rating": 3},
-        {"text": "Love the design and camera. Software updates are slow though.", "rating": 4},
-        {"text": "Terrible customer service when I reported the defect.", "rating": 1},
-        {"text": "Best smartphone under this budget. Highly recommended!", "rating": 5},
-        {"text": "Screen is gorgeous. Face unlock works perfectly every time.", "rating": 4},
-        {"text": "Disappointed with the speaker quality. Expected much better.", "rating": 2},
-        {"text": "Solid phone with great performance. Camera could be improved.", "rating": 4},
-        {"text": "Phone gets very hot during video calls. Unacceptable.", "rating": 2},
-        {"text": "Absolutely love this phone. Best purchase of the year!", "rating": 5}
-    ],
-    "Earphones": [
-        {"text": "Crystal clear sound quality. Bass is deep and punchy.", "rating": 5},
-        {"text": "Good earphones but the ear tips hurt after long use.", "rating": 3},
-        {"text": "Excellent noise cancellation. Perfect for office use.", "rating": 5},
-        {"text": "Stopped working after 2 months. Very poor build quality.", "rating": 1},
-        {"text": "Amazing sound for the price. Highly recommended budget option.", "rating": 4},
-        {"text": "Mic quality is terrible for calls. Music is fine though.", "rating": 2},
-        {"text": "Best earphones under 1000 rupees. Exceeded expectations.", "rating": 5},
-        {"text": "Connection keeps dropping every few minutes. Very frustrating.", "rating": 1},
-        {"text": "Good sound isolation. Comfortable for long hours.", "rating": 4},
-        {"text": "Decent product but wire tangles very easily.", "rating": 3}
-    ],
-    "Laptop": [
-        {"text": "Blazing fast performance. SSD makes everything instant.", "rating": 5},
-        {"text": "Great laptop for coding and development work.", "rating": 5},
-        {"text": "Battery backup is only 4 hours. Very disappointing.", "rating": 2},
-        {"text": "Keyboard feel is amazing. Display is bright and sharp.", "rating": 4},
-        {"text": "Fan noise is very loud during heavy tasks.", "rating": 3},
-        {"text": "Perfect for students. Lightweight and powerful.", "rating": 5},
-        {"text": "Trackpad is unresponsive. Had to use external mouse.", "rating": 2},
-        {"text": "Excellent build quality. Feels premium and solid.", "rating": 5},
-        {"text": "Heats up badly. Thermal throttling affects performance.", "rating": 2},
-        {"text": "Good laptop overall. Worth the price for the specs.", "rating": 4}
-    ]
-}
+# Helper functions
+def analyze_textblob(text):
+    blob       = TextBlob(text)
+    polarity   = blob.sentiment.polarity
+    subjectivity = blob.sentiment.subjectivity
+    if polarity > 0.1:
+        sentiment = "Positive"
+        emoji     = "😊"
+        color     = "#2ecc71"
+    elif polarity < -0.1:
+        sentiment = "Negative"
+        emoji     = "😢"
+        color     = "#e74c3c"
+    else:
+        sentiment = "Neutral"
+        emoji     = "😐"
+        color     = "#f39c12"
+    return {
+        'sentiment':     sentiment,
+        'emoji':         emoji,
+        'color':         color,
+        'polarity':      round(polarity, 4),
+        'subjectivity':  round(subjectivity, 4)
+    }
 
-def get_sentiment(text):
-    scores   = analyzer.polarity_scores(text)
+def analyze_vader(text):
+    scores = analyzer.polarity_scores(text)
     compound = scores['compound']
     if compound >= 0.05:
-        return 'Positive', '#2ecc71', compound
+        sentiment = "Positive"
+        emoji     = "😊"
+        color     = "#2ecc71"
     elif compound <= -0.05:
-        return 'Negative', '#e74c3c', compound
+        sentiment = "Negative"
+        emoji     = "😢"
+        color     = "#e74c3c"
     else:
-        return 'Neutral', '#f39c12', compound
-
-def extract_keywords(reviews, n=15):
-    stop_words = {
-        'the', 'a', 'an', 'and', 'or', 'but',
-        'in', 'on', 'at', 'to', 'for', 'of',
-        'with', 'by', 'is', 'are', 'was', 'were',
-        'be', 'been', 'this', 'that', 'it', 'i',
-        'my', 'very', 'so', 'after', 'its',
-        'not', 'no', 'have', 'has', 'just',
-        'get', 'got', 'much', 'good', 'great',
-        'bad', 'product', 'really', 'also'
+        sentiment = "Neutral"
+        emoji     = "😐"
+        color     = "#f39c12"
+    return {
+        'sentiment': sentiment,
+        'emoji':     emoji,
+        'color':     color,
+        'compound':  round(compound, 4),
+        'positive':  round(scores['pos'], 4),
+        'negative':  round(scores['neg'], 4),
+        'neutral':   round(scores['neu'], 4)
     }
-    words = []
-    for review in reviews:
-        clean = re.sub(
-            r'[^a-zA-Z\s]', '',
-            review.lower()).split()
-        words.extend([
-            w for w in clean
-            if w not in stop_words
-            and len(w) > 3
-        ])
-    return Counter(words).most_common(n)
 
-def star_display(rating):
-    return "⭐" * rating + "☆" * (5 - rating)
+def clean_text(text):
+    text = re.sub(r'http\S+', '', text)
+    text = re.sub(r'@\w+', '', text)
+    text = re.sub(r'#\w+', '', text)
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    return text.lower().strip()
 
-def get_top_words(reviews, n=15):
+def get_top_words(texts, n=20):
+    all_words = []
     stop_words = {
-        'the', 'a', 'an', 'and', 'or', 'but',
-        'in', 'on', 'at', 'to', 'for', 'of',
-        'with', 'by', 'is', 'are', 'was', 'were',
-        'be', 'been', 'this', 'that', 'it', 'i',
-        'my', 'very', 'so', 'after', 'its',
-        'not', 'no', 'have', 'has', 'just',
-        'get', 'got', 'much', 'good', 'great',
-        'bad', 'product', 'really', 'also'
+        'the', 'a', 'an', 'and', 'or',
+        'but', 'in', 'on', 'at', 'to',
+        'for', 'of', 'with', 'by', 'is',
+        'are', 'was', 'were', 'be', 'been',
+        'this', 'that', 'it', 'i', 'you',
+        'he', 'she', 'we', 'they', 'my',
+        'your', 'his', 'her', 'its', 'our',
+        'have', 'has', 'had', 'do', 'did',
+        'will', 'would', 'can', 'could',
+        'not', 'no', 'so', 'what', 'how'
     }
-    words = []
-    for review in reviews:
-        clean = re.sub(
-            r'[^a-zA-Z\s]', '',
-            review.lower()).split()
-        words.extend([
-            w for w in clean
+    for text in texts:
+        words = clean_text(text).split()
+        all_words.extend([
+            w for w in words
             if w not in stop_words
-            and len(w) > 3
+            and len(w) > 2
         ])
-    return Counter(words).most_common(n)
+    return Counter(all_words).most_common(n)
 
 # Tabs
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Sample Products",
-    "📝 Paste Reviews",
-    "📁 Upload CSV",
-    "🏆 Insights"
+    "📝 Single Analysis",
+    "📊 Bulk Analysis",
+    "☁️ Word Cloud",
+    "📈 Comparison"
 ])
 
-# Tab 1 — Sample Products
+# Tab 1 — Single Analysis
 with tab1:
-    st.markdown("### Analyze Sample Product Reviews")
+    st.markdown("### Analyze Any Text")
 
-    product = st.selectbox(
-        "Select product:",
-        list(SAMPLE_REVIEWS.keys())
+    text_input = st.text_area(
+        "Enter text to analyze:",
+        placeholder="Paste any tweet, review, "
+                    "comment or paragraph...",
+        height=150
     )
 
-    reviews_data = SAMPLE_REVIEWS[product]
-    texts        = [r['text']
-                    for r in reviews_data]
-    ratings      = [r['rating']
-                    for r in reviews_data]
-
-    # Analyze sentiment
-    sentiments = [
-        get_sentiment(t) for t in texts]
-    sent_labels = [s[0] for s in sentiments]
-    compounds   = [s[2] for s in sentiments]
-
-    # Metrics
-    avg_rating  = np.mean(ratings)
-    avg_compound = np.mean(compounds)
-    pos_count   = sent_labels.count('Positive')
-    neg_count   = sent_labels.count('Negative')
-    neu_count   = sent_labels.count('Neutral')
-    total       = len(reviews_data)
-
-    col1, col2, col3, col4, col5 = \
-        st.columns(5)
-    col1.metric("Total Reviews", total)
-    col2.metric("Avg Rating",
-                f"{avg_rating:.1f} ⭐")
-    col3.metric("Positive 😊",
-                f"{pos_count} "
-                f"({pos_count/total*100:.0f}%)")
-    col4.metric("Negative 😢",
-                f"{neg_count} "
-                f"({neg_count/total*100:.0f}%)")
-    col5.metric("Sentiment Score",
-                f"{avg_compound:.3f}")
-
-    st.markdown("---")
-    left, right = st.columns(2)
-
-    with left:
-        # Rating distribution
-        st.markdown("#### ⭐ Rating Distribution")
-        fig, ax = plt.subplots(figsize=(6, 4))
-        rating_counts = Counter(ratings)
-        stars  = [1, 2, 3, 4, 5]
-        counts = [rating_counts.get(s, 0)
-                  for s in stars]
-        colors = ['#e74c3c', '#e67e22',
-                  '#f39c12', '#2ecc71',
-                  '#27ae60']
-        bars   = ax.barh(
-            [f"{s} ⭐" for s in stars],
-            counts,
-            color=colors,
-            edgecolor='black'
-        )
-        for bar, val in zip(bars, counts):
-            ax.text(
-                bar.get_width() + 0.1,
-                bar.get_y() +
-                bar.get_height()/2,
-                str(val),
-                va='center',
-                fontweight='bold'
-            )
-        ax.set_title(
-            'Rating Distribution',
-            fontsize=12)
-        ax.set_xlabel('Number of Reviews')
-        plt.tight_layout()
-        st.pyplot(fig)
-
-    with right:
-        # Sentiment pie
-        st.markdown(
-            "#### 😊 Sentiment Distribution")
-        fig2, ax2 = plt.subplots(figsize=(6, 4))
-        sent_counts = [pos_count,
-                       neu_count,
-                       neg_count]
-        sent_colors = ['#2ecc71',
-                       '#f39c12',
-                       '#e74c3c']
-        sent_lbls   = [
-            f'Positive\n({pos_count})',
-            f'Neutral\n({neu_count})',
-            f'Negative\n({neg_count})'
-        ]
-        non_zero = [
-            (c, col, lbl)
-            for c, col, lbl in zip(
-                sent_counts,
-                sent_colors,
-                sent_lbls)
-            if c > 0
-        ]
-        if non_zero:
-            counts_nz, colors_nz, lbls_nz = \
-                zip(*non_zero)
-            ax2.pie(
-                counts_nz,
-                labels=lbls_nz,
-                colors=colors_nz,
-                autopct='%1.1f%%',
-                startangle=90,
-                wedgeprops={
-                    'edgecolor': 'white'}
-            )
-        ax2.set_title(
-            'Sentiment Distribution',
-            fontsize=12)
-        plt.tight_layout()
-        st.pyplot(fig2)
-
-    # Sentiment trend
-    st.markdown("#### 📈 Sentiment Trend")
-    fig3, ax3 = plt.subplots(figsize=(12, 3))
-    bar_colors = [
-        '#2ecc71' if s == 'Positive'
-        else '#e74c3c' if s == 'Negative'
-        else '#f39c12'
-        for s in sent_labels
-    ]
-    ax3.bar(range(1, total + 1),
-            compounds,
-            color=bar_colors,
-            edgecolor='black',
-            alpha=0.8)
-    ax3.axhline(y=0, color='black',
-                linewidth=1)
-    ax3.axhline(y=avg_compound,
-                color='blue',
-                linewidth=2,
-                linestyle='--',
-                label=f'Avg: {avg_compound:.3f}')
-    ax3.set_title(
-        f'Sentiment Score per Review — '
-        f'{product}',
-        fontsize=13)
-    ax3.set_xlabel('Review Number')
-    ax3.set_ylabel('VADER Compound Score')
-    ax3.legend()
-    plt.tight_layout()
-    st.pyplot(fig3)
-
-    # Individual reviews
-    st.markdown("#### 📋 All Reviews")
-    for i, (review, rating, sent) in enumerate(
-        zip(texts, ratings, sentiments), 1
-    ):
-        sentiment, color, score = sent
-        with st.expander(
-            f"Review {i} — "
-            f"{star_display(rating)} "
-            f"| {sentiment}"
-        ):
-            st.markdown(review)
-            st.caption(
-                f"Sentiment: {sentiment} "
-                f"| Score: {score:.3f} "
-                f"| Rating: {rating}/5"
-            )
-
-# Tab 2 — Paste Reviews
-with tab2:
-    st.markdown("### Paste Your Own Reviews")
-    st.markdown(
-        "Enter one review per line. "
-        "Optionally add rating as "
-        "`[5]` at the start.")
-
-    custom_input = st.text_area(
-        "Paste reviews:",
-        placeholder=(
-            "[5] Excellent product highly recommend!\n"
-            "[3] Average quality nothing special\n"
-            "[1] Complete waste of money avoid\n"
-            "[4] Good but could be better\n"
-            "[5] Amazing fast delivery great quality"
-        ),
-        height=250
+    model_choice = st.radio(
+        "Analysis model:",
+        ["Both (recommended)",
+         "VADER only",
+         "TextBlob only"],
+        horizontal=True
     )
 
-    product_name = st.text_input(
-        "Product name:",
-        value="My Product"
-    )
-
-    if st.button("📊 Analyze Reviews",
+    if st.button("🔍 Analyze",
                  type="primary"):
-        if custom_input.strip():
+        if text_input.strip():
+            st.markdown("---")
+
+            if model_choice in [
+                "Both (recommended)",
+                "VADER only"
+            ]:
+                vader = analyze_vader(
+                    text_input)
+                st.markdown(
+                    "#### 🎯 VADER Analysis")
+                st.markdown(
+                    f"<h3 style='color:"
+                    f"{vader['color']}'>"
+                    f"{vader['emoji']} "
+                    f"{vader['sentiment']}"
+                    f"</h3>",
+                    unsafe_allow_html=True
+                )
+                v1, v2, v3, v4 = st.columns(4)
+                v1.metric("Compound",
+                          vader['compound'])
+                v2.metric("Positive",
+                          vader['positive'])
+                v3.metric("Negative",
+                          vader['negative'])
+                v4.metric("Neutral",
+                          vader['neutral'])
+
+                # VADER score bar
+                fig, ax = plt.subplots(
+                    figsize=(10, 2))
+                scores = [
+                    vader['positive'],
+                    vader['neutral'],
+                    vader['negative']
+                ]
+                colors = ['#2ecc71',
+                          '#f39c12',
+                          '#e74c3c']
+                labels = ['Positive',
+                          'Neutral',
+                          'Negative']
+                left = 0
+                for score, color, label \
+                        in zip(scores,
+                               colors,
+                               labels):
+                    ax.barh(
+                        ['Sentiment'],
+                        [score],
+                        left=left,
+                        color=color,
+                        label=label,
+                        height=0.4
+                    )
+                    if score > 0.05:
+                        ax.text(
+                            left + score/2,
+                            0,
+                            f'{score:.2f}',
+                            ha='center',
+                            va='center',
+                            fontsize=10,
+                            fontweight='bold',
+                            color='white'
+                        )
+                    left += score
+                ax.set_xlim(0, 1)
+                ax.set_title(
+                    'VADER Score Breakdown',
+                    fontsize=12)
+                ax.legend(
+                    loc='upper right',
+                    fontsize=9)
+                ax.axis('off')
+                plt.tight_layout()
+                st.pyplot(fig)
+
+            if model_choice in [
+                "Both (recommended)",
+                "TextBlob only"
+            ]:
+                tb = analyze_textblob(
+                    text_input)
+                st.markdown(
+                    "#### 📝 TextBlob Analysis")
+                st.markdown(
+                    f"<h3 style='color:"
+                    f"{tb['color']}'>"
+                    f"{tb['emoji']} "
+                    f"{tb['sentiment']}"
+                    f"</h3>",
+                    unsafe_allow_html=True
+                )
+                t1, t2 = st.columns(2)
+                t1.metric(
+                    "Polarity",
+                    tb['polarity'],
+                    help="-1=Negative, "
+                         "+1=Positive"
+                )
+                t2.metric(
+                    "Subjectivity",
+                    tb['subjectivity'],
+                    help="0=Objective, "
+                         "1=Subjective"
+                )
+
+            # Word analysis
+            words = clean_text(
+                text_input).split()
+            if words:
+                st.markdown(
+                    "#### 🔤 Word Analysis")
+                w1, w2, w3 = st.columns(3)
+                w1.metric("Word Count",
+                          len(words))
+                w2.metric("Unique Words",
+                          len(set(words)))
+                w3.metric("Avg Word Length",
+                          f"{np.mean([len(w) for w in words]):.1f}")
+        else:
+            st.warning(
+                "Please enter some text!")
+
+# Tab 2 — Bulk Analysis
+with tab2:
+    st.markdown("### Bulk Sentiment Analysis")
+    st.markdown(
+        "Enter one text per line — "
+        "analyze multiple posts at once.")
+
+    bulk_input = st.text_area(
+        "Enter texts (one per line):",
+        placeholder=(
+            "I love this product!\n"
+            "This is terrible service.\n"
+            "The weather is okay today.\n"
+            "Amazing experience, highly recommend!\n"
+            "Worst purchase I ever made."
+        ),
+        height=200
+    )
+
+    if st.button("📊 Analyze All",
+                 type="primary"):
+        if bulk_input.strip():
             lines = [
                 l.strip()
-                for l in custom_input.split('\n')
+                for l in bulk_input.split('\n')
                 if l.strip()
             ]
 
-            parsed = []
+            results = []
             for line in lines:
-                rating_match = re.match(
-                    r'^\[(\d)\]\s*(.*)',
-                    line)
-                if rating_match:
-                    rating = int(
-                        rating_match.group(1))
-                    text   = rating_match.group(2)
-                else:
-                    rating = None
-                    text   = line
-
-                sent, color, score = \
-                    get_sentiment(text)
-                parsed.append({
-                    'Text':      text[:60] +
-                                 '...' if
-                                 len(text) > 60
-                                 else text,
-                    'Rating':    rating or 'N/A',
-                    'Sentiment': sent,
-                    'Score':     round(score, 3)
+                vader = analyze_vader(line)
+                tb    = analyze_textblob(line)
+                results.append({
+                    'Text':           line[:60] +
+                                      '...' if
+                                      len(line) > 60
+                                      else line,
+                    'VADER':          vader['sentiment'],
+                    'TextBlob':       tb['sentiment'],
+                    'Compound':       vader['compound'],
+                    'Polarity':       tb['polarity'],
+                    'Subjectivity':   tb['subjectivity']
                 })
 
-            df = pd.DataFrame(parsed)
+            df = pd.DataFrame(results)
             st.dataframe(df,
                          use_container_width=True,
                          hide_index=True)
 
-            # Quick stats
-            pos = (df['Sentiment'] ==
+            # Distribution chart
+            fig, axes = plt.subplots(
+                1, 2, figsize=(12, 4))
+
+            vader_counts = df['VADER']\
+                .value_counts()
+            tb_counts    = df['TextBlob']\
+                .value_counts()
+
+            sent_colors = {
+                'Positive': '#2ecc71',
+                'Neutral':  '#f39c12',
+                'Negative': '#e74c3c'
+            }
+
+            for ax, counts, title in zip(
+                axes,
+                [vader_counts, tb_counts],
+                ['VADER Distribution',
+                 'TextBlob Distribution']
+            ):
+                colors = [
+                    sent_colors.get(s, '#95a5a6')
+                    for s in counts.index
+                ]
+                ax.bar(counts.index,
+                       counts.values,
+                       color=colors,
+                       edgecolor='black')
+                ax.set_title(title, fontsize=12)
+                ax.set_ylabel('Count')
+
+            plt.tight_layout()
+            st.pyplot(fig)
+
+            # Summary
+            pos = (df['VADER'] ==
                    'Positive').sum()
-            neg = (df['Sentiment'] ==
+            neg = (df['VADER'] ==
                    'Negative').sum()
-            neu = (df['Sentiment'] ==
+            neu = (df['VADER'] ==
                    'Neutral').sum()
-            avg = df['Score'].mean()
 
             s1, s2, s3, s4 = st.columns(4)
-            s1.metric("Total", len(df))
+            s1.metric("Total Analyzed",
+                      len(df))
             s2.metric("Positive 😊", pos)
             s3.metric("Negative 😢", neg)
-            s4.metric("Avg Score",
-                       f"{avg:.3f}")
+            s4.metric("Neutral 😐",  neu)
 
             # Download
             st.download_button(
-                "⬇️ Download Analysis",
+                "⬇️ Download Results",
                 df.to_csv(index=False),
-                f"{product_name}_analysis.csv",
+                "sentiment_results.csv",
                 "text/csv"
             )
+        else:
+            st.warning(
+                "Please enter some texts!")
 
-# Tab 3 — Upload CSV
+# Tab 3 — Word Cloud
 with tab3:
-    st.markdown("### Upload Reviews CSV")
-    st.info(
-        "CSV must have a column named "
-        "'review' or 'text' or 'comment'. "
-        "Optional: 'rating' column.")
+    st.markdown("### ☁️ Word Cloud Generator")
 
-    uploaded = st.file_uploader(
-        "Upload CSV file:",
-        type=['csv']
+    wc_text = st.text_area(
+        "Enter text for word cloud:",
+        placeholder="Paste any text, article "
+                    "or collection of posts...",
+        height=150
     )
 
-    if uploaded:
-        try:
-            df_upload = pd.read_csv(uploaded)
-            st.success(
-                f"Loaded {len(df_upload)} rows!")
-            st.dataframe(
-                df_upload.head(),
-                use_container_width=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        colormap = st.selectbox(
+            "Color scheme:",
+            ["viridis", "plasma",
+             "RdYlGn", "Blues",
+             "Reds", "coolwarm"]
+        )
+    with col2:
+        max_words = st.slider(
+            "Max words:", 20, 200, 100)
 
-            # Find text column
-            text_col = None
-            for col in ['review', 'text',
-                         'comment', 'Review',
-                         'Text', 'Comment']:
-                if col in df_upload.columns:
-                    text_col = col
-                    break
+    if st.button("☁️ Generate Word Cloud",
+                 type="primary"):
+        if wc_text.strip():
+            cleaned = clean_text(wc_text)
 
-            if text_col:
-                if st.button(
-                    "📊 Analyze CSV",
-                    type="primary"
-                ):
-                    texts_csv = df_upload[
-                        text_col].dropna(
-                    ).tolist()
-
-                    results = []
-                    for text in texts_csv[:100]:
-                        sent, color, score = \
-                            get_sentiment(
-                                str(text))
-                        results.append({
-                            'Text':      str(
-                                text)[:50],
-                            'Sentiment': sent,
-                            'Score':     round(
-                                score, 3)
-                        })
-
-                    results_df = pd.DataFrame(
-                        results)
-                    st.dataframe(
-                        results_df,
-                        use_container_width=True,
-                        hide_index=True)
-
-                    pos = (results_df[
-                               'Sentiment'] ==
-                           'Positive').sum()
-                    neg = (results_df[
-                               'Sentiment'] ==
-                           'Negative').sum()
-
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Analyzed",
-                              len(results_df))
-                    c2.metric("Positive", pos)
-                    c3.metric("Negative", neg)
+            if len(cleaned.split()) < 5:
+                st.warning(
+                    "Please enter more text "
+                    "for a meaningful word cloud.")
             else:
-                st.error(
-                    "No 'review', 'text' or "
-                    "'comment' column found.")
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+                wc = WordCloud(
+                    width=800, height=400,
+                    background_color='white',
+                    colormap=colormap,
+                    max_words=max_words,
+                    collocations=False
+                ).generate(cleaned)
 
-# Tab 4 — Insights
+                fig, ax = plt.subplots(
+                    figsize=(12, 5))
+                ax.imshow(wc,
+                          interpolation='bilinear')
+                ax.axis('off')
+                ax.set_title(
+                    'Word Cloud',
+                    fontsize=14)
+                plt.tight_layout()
+                st.pyplot(fig)
+
+                # Top words
+                top_words = get_top_words(
+                    [wc_text], n=15)
+                if top_words:
+                    st.markdown(
+                        "### 🔤 Top 15 Words")
+                    words_df = pd.DataFrame(
+                        top_words,
+                        columns=['Word', 'Count']
+                    )
+                    fig2, ax2 = plt.subplots(
+                        figsize=(10, 4))
+                    ax2.barh(
+                        words_df['Word'][::-1],
+                        words_df['Count'][::-1],
+                        color='#3498db',
+                        edgecolor='black'
+                    )
+                    ax2.set_title(
+                        'Most Frequent Words',
+                        fontsize=12)
+                    ax2.set_xlabel('Count')
+                    plt.tight_layout()
+                    st.pyplot(fig2)
+        else:
+            st.warning(
+                "Please enter some text!")
+
+# Tab 4 — Comparison
 with tab4:
     st.markdown(
-        "### 🏆 Keyword & Theme Insights")
+        "### 📈 Compare Sentiment "
+        "Across Topics")
 
-    insight_product = st.selectbox(
-        "Select product for insights:",
-        list(SAMPLE_REVIEWS.keys()),
-        key="insight_product"
-    )
-
-    reviews_i = [
-        r['text']
-        for r in SAMPLE_REVIEWS[
-            insight_product]
-    ]
-    ratings_i = [
-        r['rating']
-        for r in SAMPLE_REVIEWS[
-            insight_product]
-    ]
-
-    # Split by sentiment
-    pos_reviews = [
-        r for r, s in zip(
-            reviews_i,
-            [get_sentiment(t)[0]
-             for t in reviews_i])
-        if s == 'Positive'
-    ]
-    neg_reviews = [
-        r for r, s in zip(
-            reviews_i,
-            [get_sentiment(t)[0]
-             for t in reviews_i])
-        if s == 'Negative'
-    ]
+    st.markdown(
+        "Enter topic name and sample "
+        "texts to compare sentiment.")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("#### 😊 Positive Keywords")
-        if pos_reviews:
-            pos_words = get_top_words(
-                pos_reviews, n=10)
-            if pos_words:
-                words, counts = zip(*pos_words)
-                fig, ax = plt.subplots(
-                    figsize=(6, 4))
-                ax.barh(
-                    list(words)[::-1],
-                    list(counts)[::-1],
-                    color='#2ecc71',
-                    edgecolor='black'
-                )
-                ax.set_title(
-                    'Top Positive Keywords',
-                    fontsize=12)
-                plt.tight_layout()
-                st.pyplot(fig)
+        topic1 = st.text_input(
+            "Topic 1 name:",
+            value="Product A"
+        )
+        texts1 = st.text_area(
+            "Topic 1 reviews:",
+            value=(
+                "Great product love it!\n"
+                "Amazing quality worth every penny\n"
+                "Best purchase ever made\n"
+                "Highly recommend to everyone\n"
+                "Could be better honestly"
+            ),
+            height=150
+        )
 
     with col2:
-        st.markdown("#### 😢 Negative Keywords")
-        if neg_reviews:
-            neg_words = get_top_words(
-                neg_reviews, n=10)
-            if neg_words:
-                words, counts = zip(*neg_words)
-                fig2, ax2 = plt.subplots(
-                    figsize=(6, 4))
-                ax2.barh(
-                    list(words)[::-1],
-                    list(counts)[::-1],
-                    color='#e74c3c',
-                    edgecolor='black'
-                )
-                ax2.set_title(
-                    'Top Negative Keywords',
-                    fontsize=12)
-                plt.tight_layout()
-                st.pyplot(fig2)
+        topic2 = st.text_input(
+            "Topic 2 name:",
+            value="Product B"
+        )
+        texts2 = st.text_area(
+            "Topic 2 reviews:",
+            value=(
+                "Terrible product waste of money\n"
+                "Very disappointed with quality\n"
+                "Never buying again horrible\n"
+                "Broke after one day use\n"
+                "Not what I expected at all"
+            ),
+            height=150
+        )
 
-    # Word cloud
-    st.markdown("#### ☁️ All Reviews Word Cloud")
-    all_text = ' '.join(reviews_i)
-    clean    = re.sub(
-        r'[^a-zA-Z\s]', '',
-        all_text.lower())
+    if st.button("📊 Compare Topics",
+                 type="primary"):
+        topics   = {
+            topic1: texts1,
+            topic2: texts2
+        }
+        comp_results = {}
 
-    if len(clean.split()) > 5:
-        wc = WordCloud(
-            width=800, height=300,
-            background_color='white',
-            colormap='RdYlGn',
-            max_words=80,
-            collocations=False
-        ).generate(clean)
+        for topic, texts in topics.items():
+            lines = [
+                l.strip()
+                for l in texts.split('\n')
+                if l.strip()
+            ]
+            scores = [
+                analyze_vader(l)['compound']
+                for l in lines
+            ]
+            comp_results[topic] = {
+                'mean':    np.mean(scores),
+                'scores':  scores,
+                'lines':   lines
+            }
 
-        fig3, ax3 = plt.subplots(
-            figsize=(12, 4))
-        ax3.imshow(wc,
-                   interpolation='bilinear')
-        ax3.axis('off')
+        # Comparison chart
+        fig, axes = plt.subplots(
+            1, 2, figsize=(12, 5))
+
+        topic_names = list(comp_results.keys())
+        mean_scores = [
+            comp_results[t]['mean']
+            for t in topic_names
+        ]
+        bar_colors  = [
+            '#2ecc71' if s >= 0
+            else '#e74c3c'
+            for s in mean_scores
+        ]
+
+        bars = axes[0].bar(
+            topic_names, mean_scores,
+            color=bar_colors,
+            edgecolor='black'
+        )
+        for bar, val in zip(bars, mean_scores):
+            axes[0].text(
+                bar.get_x() +
+                bar.get_width()/2,
+                bar.get_height() +
+                (0.01 if val >= 0 else -0.03),
+                f'{val:.3f}',
+                ha='center',
+                fontweight='bold'
+            )
+        axes[0].axhline(
+            y=0, color='black',
+            linewidth=1)
+        axes[0].set_title(
+            'Average Sentiment Score',
+            fontsize=12)
+        axes[0].set_ylabel(
+            'VADER Compound Score')
+        axes[0].set_ylim(-1, 1)
+
+        # Score distributions
+        for topic, color in zip(
+            topic_names,
+            ['#3498db', '#e74c3c']
+        ):
+            axes[1].hist(
+                comp_results[topic]['scores'],
+                bins=10,
+                alpha=0.6,
+                color=color,
+                label=topic,
+                edgecolor='black'
+            )
+        axes[1].axvline(
+            x=0, color='black',
+            linewidth=1,
+            linestyle='--'
+        )
+        axes[1].set_title(
+            'Score Distribution',
+            fontsize=12)
+        axes[1].set_xlabel(
+            'VADER Compound Score')
+        axes[1].set_ylabel('Count')
+        axes[1].legend()
+
         plt.tight_layout()
-        st.pyplot(fig3)
+        st.pyplot(fig)
 
-    # Rating vs sentiment correlation
-    st.markdown(
-        "#### 📊 Rating vs Sentiment Score")
-    compounds_i = [
-        get_sentiment(t)[2]
-        for t in reviews_i
-    ]
-    fig4, ax4 = plt.subplots(figsize=(8, 4))
-    colors_scatter = [
-        '#2ecc71' if r >= 4
-        else '#e74c3c' if r <= 2
-        else '#f39c12'
-        for r in ratings_i
-    ]
-    ax4.scatter(
-        ratings_i,
-        compounds_i,
-        c=colors_scatter,
-        s=100, alpha=0.8,
-        edgecolors='black'
-    )
-    ax4.set_xlabel('Star Rating')
-    ax4.set_ylabel('VADER Compound Score')
-    ax4.set_title(
-        'Rating vs Sentiment Correlation',
-        fontsize=12)
-    ax4.grid(alpha=0.3)
-    plt.tight_layout()
-    st.pyplot(fig4)
+        # Winner
+        winner = max(
+            comp_results,
+            key=lambda x:
+            comp_results[x]['mean']
+        )
+        loser  = min(
+            comp_results,
+            key=lambda x:
+            comp_results[x]['mean']
+        )
+        st.success(
+            f"✅ **{winner}** has more "
+            f"positive sentiment "
+            f"(score: "
+            f"{comp_results[winner]['mean']:.3f})"
+        )
+        st.error(
+            f"❌ **{loser}** has more "
+            f"negative sentiment "
+            f"(score: "
+            f"{comp_results[loser]['mean']:.3f})"
+        )
 
 st.markdown("---")
 st.markdown(
     "Built by **Jyotiraditya** | "
-    "Product Review Analyzer | "
-    "Powered by VADER Sentiment Analysis"
+    "Social Media Sentiment Analyzer | "
+    "Powered by VADER + TextBlob"
 )
